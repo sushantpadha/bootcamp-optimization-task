@@ -1,0 +1,9 @@
+# Compiled binary
+spawn_sim
+
+# Claude Code memory
+.claude/
+
+# Test grid data files (regenerate with test_grids/generate.py)
+test_grids/*.bin
+test_grids/*.expected.bin
