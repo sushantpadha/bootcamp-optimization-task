@@ -3,22 +3,29 @@
 Test runner for Monster Spawning Grid implementations.
 
 Usage:
-    python3 run_tests.py <cpp_file> [max_grid_size]
+    python3 run_tests.py <cpp_file> [max_grid_size] [build_script]
 
 Arguments:
     cpp_file          Path to the C++ file to test (will be compiled)
     max_grid_size     Maximum grid size to test (default: largest available)
                       Common sizes: 512, 2048, 8192, 32768
+    build_script      Optional path to build.sh (auto-detects in source dir if not provided)
 
 The script will:
-    1. Compile the C++ file
-    2. Find all .bin test files up to max_grid_size
-    3. Run the compiled binary on each test file
-    4. Verify output matches .expected.bin (if it exists)
-    5. Log results to logs/ folder with:
+    1. Look for build.sh in the same directory as cpp_file (or use provided build_script)
+    2. Compile the C++ file using the build script
+    3. Find all .bin test files up to max_grid_size
+    4. Run the compiled binary on each test file
+    5. Verify output matches .expected.bin (if it exists)
+    6. Log results to logs/ folder with:
        - Test name and status (PASS/FAIL)
        - Elapsed time reported by the program
        - Total execution time
+
+Examples:
+    python3 run_tests.py reference/spawn_sim.cpp 512
+    python3 run_tests.py my_solution.cpp 8192 ./build.sh
+    python3 run_tests.py src/solution.cpp
 """
 
 import os
