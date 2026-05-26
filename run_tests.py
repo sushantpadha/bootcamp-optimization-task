@@ -107,10 +107,11 @@ def compile_cpp(cpp_file, build_script=None):
             print(f"  Use: {sys.argv[0]} <cpp_file> [max_grid_size] <build_script>", file=sys.stderr)
             sys.exit(1)
 
-    # Run build script with OUTPUT environment variable
+    # Run build script with OUTPUT and INPUT environment variables
     try:
         env = os.environ.copy()
         env["OUTPUT"] = str(executable)
+        env["INPUT"] = str(cpp_file.resolve())
         
         result = subprocess.run(
             ["bash", str(build_script)],
