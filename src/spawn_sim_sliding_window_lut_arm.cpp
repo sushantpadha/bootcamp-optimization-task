@@ -245,10 +245,10 @@ static void worker(int tid, int nthreads, WorkCtx* wc, std::barrier<>* bar)
         const uint8_t* cur = wc->grids[ gen      & 1];
         uint8_t*       nxt = wc->grids[(gen + 1) & 1];
 
+        const int Nmask = N - 1;   // N is power of 2
         // ── Seed V for this thread's starting row ────────────────────────
         std::fill(V.begin(), V.end(), 0u);
         for (int d = y_start - 2; d <= y_start + 2; ++d) {
-            const int Nmask = N - 1;   // N is power of 2
             int gr = d & Nmask;    // works for negative d in two's complement
             uint8_t* slot = ring_slot(d);
             compute_row_sum(cur + (size_t)gr * N, slot, N);
