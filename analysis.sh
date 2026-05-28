@@ -20,10 +20,11 @@ mkdir -p "$PLOTS_DIR" "$PERF_DIR"
 SOURCE=""
 PLOT_MODE=0
 CHECK_ONLY=0
+SKIP_PERF=0
 
 usage() {
     echo "Usage:"
-    echo "  $0 <source.cpp> [--plots [gens]] [--check-only]"
+    echo "  $0 <source.cpp> [--plots [gens]] [--check-only] [--no-perf]"
     exit 1
 }
 
@@ -45,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            shift
+            ;;
+        --no-perf)
+            SKIP_PERF=1
             shift
             ;;
         *)
@@ -132,22 +137,20 @@ mv -f sim_d sim_d.old 2>/dev/null || true
 g++-14 "$SOURCE" \
     -std=c++23 \
     -O3 \
-    -mcpu=neoverse-v2 \
+    -mcpu=native \
     -Wall \
     -Wextra \
     -lpthread \
-    -march=armv9-a+sve2 \
     -funroll-loops \
     -o ./sim
 
 g++-14 "$SOURCE" \
     -std=c++23 \
     -O3 \
-    -mcpu=neoverse-v2 \
+    -mcpu=native \
     -Wall \
     -Wextra \
     -lpthread \
-    -march=armv9-a+sve2 \
     -funroll-loops \
     -g \
     -fno-omit-frame-pointer \
@@ -202,74 +205,76 @@ CACHE_REPORT="${PERF_DIR}/cache_misses_report.txt"
 CYCLES_DATA="${PERF_DIR}/cycles.data"
 CYCLES_REPORT="${PERF_DIR}/cycles_report.txt"
 
-echo
-echo "=== PERF STAT ==="
-echo
-echo "$BIN32"
+if [[ "$SKIP_PERF" -eq 0 ]]; then
+    echo
+    echo "=== PERF STAT ==="
+    echo
+    echo "$BIN32"
 
-sudo perf stat \
-    -e cycles,instructions,stalled-cycles-backend,stall_backend_mem \
-    taskset -c "$CPUSET" \
-    "$SIM" \
-    "$BIN32" \
-    out.bin \
-    "$PERF_GENS" \
-    2>&1 | tee "$GENERAL_STAT"
+    sudo perf stat \
+        -e cycles,instructions,stalled-cycles-backend,stall_backend_mem \
+        taskset -c "$CPUSET" \
+        "$SIM" \
+        "$BIN32" \
+        out.bin \
+        "$PERF_GENS" \
+        2>&1 | tee "$GENERAL_STAT"
 
-echo
+    echo
 
-sudo perf stat \
-    -e cycles,instructions,L1-dcache-load-misses,l2d_cache_refill_rd,l2d_cache_wr \
-    taskset -c "$CPUSET" \
-    "$SIM" \
-    "$BIN32" \
-    out.bin \
-    "$PERF_GENS" \
-    2>&1 | tee "$CACHE_STAT"
+    sudo perf stat \
+        -e cycles,instructions,L1-dcache-load-misses,l2d_cache_refill_rd,l2d_cache_wr \
+        taskset -c "$CPUSET" \
+        "$SIM" \
+        "$BIN32" \
+        out.bin \
+        "$PERF_GENS" \
+        2>&1 | tee "$CACHE_STAT"
 
-echo
-echo "=== PERF RECORD CACHE-MISSES ==="
+    echo
+    echo "=== PERF RECORD CACHE-MISSES ==="
 
-sudo perf record \
-    -o "$CACHE_DATA" \
-    -e cache-misses \
-    -g \
-    --call-graph dwarf \
-    taskset -c "$CPUSET" \
-    "$SIMD" \
-    "$BIN32" \
-    out.bin \
-    "$PERF_GENS"
+    sudo perf record \
+        -o "$CACHE_DATA" \
+        -e cache-misses \
+        -g \
+        --call-graph dwarf \
+        taskset -c "$CPUSET" \
+        "$SIMD" \
+        "$BIN32" \
+        out.bin \
+        "$PERF_GENS"
 
-sudo perf report \
-    -i "$CACHE_DATA" \
-    --stdio \
-    --no-children \
-    > "$CACHE_REPORT"
+    sudo perf report \
+        -i "$CACHE_DATA" \
+        --stdio \
+        --no-children \
+        > "$CACHE_REPORT"
 
-head -n 20 "$CACHE_REPORT"
+    head -n 20 "$CACHE_REPORT"
 
-echo
-echo "=== PERF RECORD CYCLES ==="
+    echo
+    echo "=== PERF RECORD CYCLES ==="
 
-sudo perf record \
-    -o "$CYCLES_DATA" \
-    -e cycles \
-    -g \
-    --call-graph dwarf \
-    taskset -c "$CPUSET" \
-    "$SIMD" \
-    "$BIN32" \
-    out.bin \
-    "$PERF_GENS"
+    sudo perf record \
+        -o "$CYCLES_DATA" \
+        -e cycles \
+        -g \
+        --call-graph dwarf \
+        taskset -c "$CPUSET" \
+        "$SIMD" \
+        "$BIN32" \
+        out.bin \
+        "$PERF_GENS"
 
-sudo perf report \
-    -i "$CYCLES_DATA" \
-    --stdio \
-    --no-children \
-    > "$CYCLES_REPORT"
+    sudo perf report \
+        -i "$CYCLES_DATA" \
+        --stdio \
+        --no-children \
+        > "$CYCLES_REPORT"
 
-head -n 20 "$CYCLES_REPORT"
+    head -n 20 "$CYCLES_REPORT"
+fi
 
 if [[ "$PLOT_MODE" -eq 1 ]]; then
 
@@ -338,40 +343,7 @@ if [[ "$PLOT_MODE" -eq 1 ]]; then
 
     done
 
-python3 << EOF
-import pandas as pd
-import matplotlib.pyplot as plt
-
-df = pd.read_csv("${CSV}")
-
-plots = [
-    ("ipc", "IPC"),
-    ("cache_misses", "Cache Misses"),
-    ("dtlb_rate", "dTLB Miss Rate"),
-    ("backend_stalls", "Backend Stalls"),
-]
-
-for col, title in plots:
-
-    plt.figure(figsize=(7,5))
-
-    plt.plot(df["grid"], df[col], marker="o")
-
-    plt.xscale("log", base=2)
-
-    plt.xlabel("Grid Size")
-    plt.ylabel(title)
-
-    plt.title(title)
-
-    plt.grid(True)
-
-    plt.tight_layout()
-
-    plt.savefig(f"${PLOTS_DIR}/{col}_${PLOT_GENS}.png")
-
-print(df)
-EOF
+python3 plot_perf.py "$CSV" "$PLOTS_DIR"
 
 fi
 
@@ -428,20 +400,27 @@ echo "Variance: ${FINAL_VARIANCE}"
 echo
 echo "=== SAVED OUTPUTS ==="
 
-echo
-echo "Perf stat:"
-echo "  $GENERAL_STAT"
-echo "  $CACHE_STAT"
+if [[ "$SKIP_PERF" -eq 0 ]]; then
+    echo
+    echo "Perf stat:"
+    echo "  $GENERAL_STAT"
+    echo "  $CACHE_STAT"
 
-echo
-echo "Perf record data:"
-echo "  $CACHE_DATA"
-echo "  $CYCLES_DATA"
+    echo
+    echo "Perf record data:"
+    echo "  $CACHE_DATA"
+    echo "  $CYCLES_DATA"
 
-echo
-echo "Perf reports:"
-echo "  $CACHE_REPORT"
-echo "  $CYCLES_REPORT"
+    echo
+    echo "Perf reports:"
+    echo "  $CACHE_REPORT"
+    echo "  $CYCLES_REPORT"
+
+    echo
+    echo "Useful annotate commands:"
+    echo "  sudo perf annotate -i $CACHE_DATA"
+    echo "  sudo perf annotate -i $CYCLES_DATA"
+fi
 
 echo
 echo "Final timing logs:"
@@ -451,10 +430,6 @@ echo
 echo "Plots:"
 echo "  $PLOTS_DIR"
 
-echo
-echo "Useful annotate commands:"
-echo "  sudo perf annotate -i $CACHE_DATA"
-echo "  sudo perf annotate -i $CYCLES_DATA"
 
 echo
 echo "Done."
