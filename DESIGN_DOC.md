@@ -1,10 +1,12 @@
 # Design Document — Monster Spawning Grid
 
-**Name:** rocky_grace_save_stars
-**Date:** 29/5/2026
-**Final median time (10 runs, public\_1):** 105670.565 ms
-**Reference median time (10 runs, public\_1):** ~ 122400000 ms
-**Speedup:** ~ 1160 ×
+| Field                                     | Value                    |
+| ----------------------------------------- | ------------------------ |
+| Name                                      | `spawn_sim_EVERYTHING_v1.3.cpp` |
+| Date                                      | `29/5/2026`              |
+| Final median time (10 runs, public_1)     | `105670.565 ms`          |
+| Reference median time (10 runs, public_1) | `~ 122400000 ms`         |
+| Speedup                                   | `~ 1160 ×`               |
 
 ---
 
