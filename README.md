@@ -1,5 +1,15 @@
 # Monster Spawning Grid
 
+Run as:
+```
+bash src/build.sh  # Compile
+./spawn_sim <test_grid_input> <output> <gens: default 10K> # Run
+```
+
+Design doc is [here](./DESIGN_DOC.md).
+
+---
+
 You will implement a simulator for a cellular automaton called the **Monster Spawning Grid** — a multi-state, range-2 variant of Conway's Game of Life. Your goal is to compute generation 10,000 of a large grid as fast as possible, correctly.
 
 This is a pure systems-performance challenge. The algorithm is fixed and given to you; the implementation is yours. You will be graded on wall-clock time to compute a correct result, and you will present your implementation to a panel of senior software engineers who will ask you to explain your design choices.
