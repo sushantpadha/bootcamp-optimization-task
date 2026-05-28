@@ -74,7 +74,7 @@ You **must**:
 
 You **must not**:
 
-- Use any algorithm that is asymptotically better than O(generations × cells). Specifically: no memoisation of grid states across generations, no pattern-recognition shortcuts, no HashLife or similar. The win must come from constant-factor engineering. We will inspect your code and ask about this in the code review.
+- Use any algorithm that is asymptotically better than O(generations × cells). Specifically: no memoisation of grid states across generations, no pattern-recognition shortcuts, no HashLife or similar. This is a constant-factor engineering challenge — every correct implementation does the same amount of work; what differs is how efficiently the hardware executes it. The win must come from SIMD, threading, cache behaviour, and memory layout, not from a smarter algorithm. We will inspect your code and ask about this in the code review.
 - Hardcode the answer or use precomputation that depends on the specific input. Your code must work correctly on any input matching the format, not just the provided test cases.
 
 You **should**:
