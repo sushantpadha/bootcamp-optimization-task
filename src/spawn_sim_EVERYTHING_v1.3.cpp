@@ -37,6 +37,9 @@
 #include <type_traits>
 #include <vector>
 
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include <arm_neon.h>
 
 static constexpr uint8_t EMPTY    = 0;
@@ -51,16 +54,19 @@ struct AlignedAllocator {
 
     AlignedAllocator() noexcept = default;
 
-    template <typename U>
-    AlignedAllocator(const AlignedAllocator<U, Alignment>&) noexcept {}
-
+    // Allocates Alignment-aligned storage for count objects of type T.
     [[nodiscard]] T* allocate(std::size_t count)
     {
-        if (count > static_cast<std::size_t>(-1) / sizeof(T))
+        if (count > static_cast<std::size_t>(-1) / sizeof(T)) {
             throw std::bad_array_new_length();
+        }
         void* pointer = nullptr;
-        if (posix_memalign(&pointer, Alignment, count * sizeof(T)) != 0)
+        const size_t bytes = count * sizeof(T);
+
+        if (posix_memalign(&pointer, Alignment, bytes) != 0) {
             throw std::bad_alloc();
+        }
+        // madvise(pointer, bytes, MADV_HUGEPAGE);
         return static_cast<T*>(pointer);
     }
 
@@ -1669,54 +1675,79 @@ int main(int argc, char* argv[])
         row_ranges[static_cast<size_t>(worker_id)] =
             compute_row_range(grid_size, thread_count, worker_id);
 
-    std::barrier generation_start_barrier(thread_count);
-    std::barrier generation_done_barrier(thread_count);
-    std::atomic<bool> stop_workers{false};
+    std::barrier generation_barrier(thread_count, [&]() noexcept {
+        current_adults.swap(next_adults);
+        current_juveniles.swap(current_eggs);
+        current_eggs.swap(next_eggs);
+    });
 
     auto worker_body = [&](int worker_id) {
         pin_current_thread_to_cpu(worker_id);
-        const RowRange owned_rows = row_ranges[static_cast<size_t>(worker_id)];
+
+        const RowRange owned_rows =
+            row_ranges[static_cast<size_t>(worker_id)];
+
         HotRowScratch hot_row_scratch(words_per_row);
 
-        for (;;) {
-            generation_start_barrier.arrive_and_wait();
-            if (stop_workers.load(std::memory_order_acquire)) break;
-
+        for (int generation = 0;
+            generation < generations;
+            ++generation)
+        {
             process_generation_chunk(
-                owned_rows.begin, owned_rows.end, grid_size, words_per_row,
-                current_adults, current_juveniles, current_eggs,
-                next_adults, next_eggs, hot_row_scratch);
+                owned_rows.begin,
+                owned_rows.end,
+                grid_size,
+                words_per_row,
+                current_adults,
+                current_juveniles,
+                current_eggs,
+                next_adults,
+                next_eggs,
+                hot_row_scratch);
 
-            generation_done_barrier.arrive_and_wait();
+            generation_barrier.arrive_and_wait();
         }
     };
 
     HotRowScratch main_hot_row_scratch(words_per_row);
+
     pin_current_thread_to_cpu(0);
+
     std::vector<std::thread> workers;
-    workers.reserve(static_cast<size_t>(std::max(0, thread_count - 1)));
-    for (int worker_id = 1; worker_id < thread_count; ++worker_id)
+
+    workers.reserve(
+        static_cast<size_t>(std::max(0, thread_count - 1)));
+
+    for (int worker_id = 1;
+        worker_id < thread_count;
+        ++worker_id)
+    {
         workers.emplace_back(worker_body, worker_id);
-
-    const RowRange main_owned_rows = row_ranges.front();
-    for (int generation = 0; generation < generations; ++generation) {
-        generation_start_barrier.arrive_and_wait();
-
-        process_generation_chunk(
-            main_owned_rows.begin, main_owned_rows.end, grid_size, words_per_row,
-            current_adults, current_juveniles, current_eggs,
-            next_adults, next_eggs, main_hot_row_scratch);
-
-        generation_done_barrier.arrive_and_wait();
-
-        current_adults.swap(next_adults);
-        current_juveniles.swap(current_eggs);
-        current_eggs.swap(next_eggs);
     }
 
-    stop_workers.store(true, std::memory_order_release);
-    generation_start_barrier.arrive_and_wait();
-    for (std::thread& worker : workers) worker.join();
+    const RowRange main_owned_rows = row_ranges.front();
+
+    for (int generation = 0;
+        generation < generations;
+        ++generation)
+    {
+        process_generation_chunk(
+            main_owned_rows.begin,
+            main_owned_rows.end,
+            grid_size,
+            words_per_row,
+            current_adults,
+            current_juveniles,
+            current_eggs,
+            next_adults,
+            next_eggs,
+            main_hot_row_scratch);
+
+        generation_barrier.arrive_and_wait();
+    }
+
+    for (std::thread& worker : workers)
+        worker.join();
 
     auto end_time = std::chrono::steady_clock::now();
     double elapsed_ms =
