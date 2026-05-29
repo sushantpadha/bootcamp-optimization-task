@@ -170,7 +170,7 @@ The five partial rows in the current window live in a circular ring of five slot
 
 ![Simulation time vs. grid size (10 000 generations)](images/time_10000.png)
 
-*Figure 1. Wall-clock time for 10 000 generations, N in {64, ..., 32 768}. Median of 10 runs.*
+*Figure 1. Wall-clock time for 10 000 generations, N in {512, ..., 32 768}. Median of 5 runs.*
 
 ### PMU counters (N = 1 000, 1 000 generations)
 
