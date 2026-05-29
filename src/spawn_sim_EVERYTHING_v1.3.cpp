@@ -66,7 +66,7 @@ struct AlignedAllocator {
         if (posix_memalign(&pointer, Alignment, bytes) != 0) {
             throw std::bad_alloc();
         }
-        // madvise(pointer, bytes, MADV_HUGEPAGE);
+        madvise(pointer, bytes, MADV_HUGEPAGE);
         return static_cast<T*>(pointer);
     }
 
