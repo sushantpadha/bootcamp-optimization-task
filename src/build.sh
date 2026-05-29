@@ -11,7 +11,7 @@ CXX="${CXX:-g++-14}"
 # CXXFLAGS="-std=c++23 -O3 -mcpu=neoverse-v2 -Wall -Wextra"
 CXXFLAGS="-std=c++23 -O3 -mcpu=native -Wall -Wextra -funroll-loops"
 OUTPUT="${OUTPUT:-spawn_sim}"
-INPUT="${INPUT:-src/spawn_sim_EVERYTHING_v1.3.cpp}"
+INPUT="${INPUT:-src/spawn_sim_EVERYTHING_v1.4.cpp}"
 
 echo "Building with $CXX from $INPUT ..."
 "$CXX" $CXXFLAGS "$INPUT" -o "$OUTPUT" -lpthread
