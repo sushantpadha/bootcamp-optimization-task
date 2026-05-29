@@ -4,9 +4,9 @@
 | ----------------------------------------- | ------------------------ |
 | Name                                      | `spawn_sim_EVERYTHING_v1.3.cpp` |
 | Date                                      | `29/5/2026`              |
-| Final median time (10 runs, public_1)     | `105670.565 ms`          |
+| Final median time (10 runs, public_1)     | `101630.343 ms`          |
 | Reference median time (10 runs, public_1) | `~ 122400000 ms`         |
-| Speedup                                   | `~ 1160 ×`               |
+| Speedup                                   | `~ 1250 ×`               |
 
 ---
 
