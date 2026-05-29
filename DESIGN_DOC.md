@@ -245,3 +245,32 @@ We used `perf stat` in two main configurations:
 Scaling runs additionally monitored `cache-misses`, `dTLB-loads`, `dTLB-load-misses`, and backend stalls across multiple grid sizes. We used `perf record`, `perf report`, and `perf annotate` in two modes: `-e cache-misses` to study cache and memory bottlenecks, and `-e cycles` to analyze execution hotspots, dependency chains, and load-use hazard stalls.
 
 Each scaling configuration was run 3 times and the median result was used. We controlled for fixed CPU frequency, fixed CPU affinity (`taskset`), ASLR disabled, warm page cache after initial runs, and transparent huge page configuration. Optimizations were evaluated incrementally by changing one component at a time and comparing perf counters and hotspot distributions across runs.
+
+---
+
+## 8. Optimizations at a Glance
+
+| Tag | What it does |
+|---|---|
+| **bit-planes** | 3 separate planes (adults, juveniles, eggs); adult plane read directly with no decode |
+| **4× memory** | 64 cells per `uint64_t`; 512 MiB total vs 1 GiB byte-per-cell at N=32 768 |
+| **inplace_adults** | `next_adults` seeded from `current_juveniles`; surviving adults OR'd in; no extra plane |
+| **self-inclusive counts** | Center cell counted in the stencil sum; thresholds shifted +1; no center-subtract in inner loop |
+| **pointer-swap rotation** | Generation advance is 3 `vector::swap` calls; zero bytes copied |
+| **8-thread stripes** | Static row-stripe decomposition; no locks inside a generation |
+| **barrier + completion** | Single `std::barrier`; plane rotation runs atomically in the completion function |
+| **thread pinning** | `pthread_setaffinity_np`; per-worker scratch stays L2-resident across all generations |
+| **csa_tree** | Two CSA stages reduce 5 horizontal neighbours to a 3-bit result; no carry propagation |
+| **sli_sri** | `vsriq_n_u64` / `vsliq_n_u64` fuse shift + inject into one instruction per neighbour view |
+| **eor3** | `veor3q_u64` (FEAT_SHA3) computes 3-input XOR in one instruction; used for CSA sum and borrow update |
+| **vbslq majority** | CSA carry (majority gate) computed as one `vbslq_u64` instead of three AND-OR ops |
+| **bsl transition** | Survival and egg conditions built with `vbicq_u64` (AND-NOT); zero explicit NOT registers; `vbslq` fuses the adult+juvenile merge |
+| **branchless_subtract** | Ripple-borrow subtractor via `vbicq`, `vbslq`, `eor3`; no data-dependent branches |
+| **pair2 + aos** | Two adjacent words per tile = one NEON load/store; AoS keeps 3 bit-planes contiguous |
+| **aligned_hot_loop** | Scalar prologue at word 1 ensures NEON starts at even index; required for `sli`/`sri` cross-lane carry |
+| **ptrstep** | Innermost loop advances 20 raw pointers; no multiply-add address arithmetic |
+| **dualpartial** | Incoming partials for rows r+3 and r+4 interleaved; loads issued early to hide latency |
+| **exact2row** | Accumulator loaded once per tile pair; two emits + two slides before store |
+| **rowstep** | Emit and slide fused in one inlined function; accumulator stays in registers between steps |
+| **rolling** | Running accumulator updated by 1 add + 1 subtract per row; not re-summed from scratch |
+| **rowcache** | 5-slot circular ring (indexed by `row % 5`); oldest slot recycled with the new incoming row |
